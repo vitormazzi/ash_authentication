@@ -192,7 +192,7 @@ defmodule AshAuthentication.TokenResource.Transformer do
       Transformer.build_entity!(Resource.Dsl, [:actions, :read], :argument,
         name: :jti,
         type: :string,
-        sensitive?: false
+        sensitive?: true
       ),
       Transformer.build_entity!(Resource.Dsl, [:actions, :read], :argument,
         name: :purpose,
@@ -418,8 +418,20 @@ defmodule AshAuthentication.TokenResource.Transformer do
     end
   end
 
-  defp build_expunge_expired_action(_dsl_state, action_name),
-    do: Transformer.build_entity(Resource.Dsl, [:actions], :destroy, name: action_name)
+  defp build_expunge_expired_action(_dsl_state, action_name) do
+    import Ash.Expr
+
+    changes = [
+      Transformer.build_entity!(Resource.Dsl, [:actions, :destroy], :change,
+        change: {Ash.Resource.Change.Filter, filter: expr(expires_at < now())}
+      )
+    ]
+
+    Transformer.build_entity(Resource.Dsl, [:actions], :destroy,
+      name: action_name,
+      changes: changes
+    )
+  end
 
   defp validate_jti_field(dsl_state) do
     with {:ok, resource} <- persisted_option(dsl_state, :module),
